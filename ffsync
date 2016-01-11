@@ -1,33 +1,27 @@
 #!/bin/bash
 
 # Author:   anton@semjonov.de
-# Date:     January 2016
+# Date:     january 2016
 
-### PULLFS ###
-##############
+export _listfile="list"
+export _hostfile="host"
+
 
 timestamp() { echo "$(date +%F--%H-%M-%S-%Z)"; } ## echo timestamp like: 2016-01-12--00-36-10-CET
 waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
-iff_ne() { test "$1" != "" && return 0 || return 1; } ## okay, iff $1 not empty
-iff_fi() { test -f "$1" && return 0 || return 1; } ## okay, iff $1 is regular file
-iff_di() { test -d "$1" && return 0 || return 1; } ## okay, iff $1 is a directory
 
 cat_the_crap() {
-    iff_ne $1 && iff_fi $1
+    test "$1" != "" && test -f "$1" || return 0
     cat "$1" | sed 's/#.*$//' | xargs
 }
 
 pull_filesystem () {
 # script downloads files in ./list from ./host into ./filesystem/
 
-    # only use 'true' or 'false' here .. this is not failsafe. 
-    debug=false
-
-    # GENERATE TIMSTAMP
-    TARBALL=tarball-$TIMESTAMP.tar.gz
+    TARBALL="ffsync-$(timestamp).tar.gz"
 
     # BUILD FILE LIST
-    FILES=`cat ./list | egrep -v "#" | sed 's|\n| |' | xargs`
+    FILES="$(cat_the_crap $_listfile)"
     if $debug; then echo -e "building file list ..\n$FILES\n"; waitkey; fi
 
     # READ HOST
