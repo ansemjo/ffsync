@@ -1,0 +1,37 @@
+#!/bin/bash
+# Author: Anton Semjonov, 2015
+
+# script downloads files in ./list from ./host into ./filesystem/
+
+# only use 'true' or 'false' here .. this is not failsafe. 
+debug=false
+waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
+
+# GENERATE TIMSTAMP
+TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
+TARBALL=tarball-$TIMESTAMP.tar.gz
+
+# BUILD FILE LIST
+FILES=`cat ./list | egrep -v "#" | sed 's|\n| |' | xargs`
+if $debug; then echo -e "building file list ..\n$FILES\n"; waitkey; fi
+
+# READ HOST
+HOST=`cat ./host | egrep -v "#" | xargs` 
+if $debug; then echo -e "connecting to: $HOST\n"; fi
+
+# CREATE REMOTE TARBALL
+echo "creating $TARBALL in /tmp .."
+ssh $HOST -t tar -cpvz -C / -f /tmp/$TARBALL $FILES
+if $debug; then waitkey; fi
+
+# COPY TARBALL
+echo -e "\ncopying file .."
+scp $HOST:/tmp/$TARBALL ./ && ssh $HOST -qt rm -f /tmp/$TARBALL
+if $debug; then waitkey; fi
+
+# EXTRACT TARBALL
+echo -e "\nextracting locally ..\n
+NOTE: this command needs root permissions to keep all original file ownerships!
+      otherwise the device might become inaccessible upon restoration via ./pushfs\n"
+if [ ! -d ./filesystem/ ]; then sudo mkdir ./filesystem/; fi
+sudo tar --same-owner -xpvz -C filesystem/ -f $TARBALL && rm $TARBALL || echo "error extracting. tarball remains."

@@ -1,0 +1,19 @@
+# list files & folders to fetch with ./pullfs here
+
+# --> any line with a hashtag in it will be ignored
+# --> any extra whitespace will be stripped with xargs
+# --> simply list a directory/like/so/ to copy hidden files
+# --> append a/star/to/it/* to omit hidden files!
+
+/etc/profile
+/etc/hosts
+/etc/firewall.user
+/etc/sysupgrade.conf
+/etc/dropbear/authorized_keys
+/etc/config/firewall
+/etc/config/network
+/etc/config/wireless
+/etc/config/system
+/etc/crontabs/
+~/.ash_aliases
+~/rc.local
