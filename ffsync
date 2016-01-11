@@ -1,3 +1,6 @@
+### PULLFS ###
+##############
+
 #!/bin/bash
 # Author: Anton Semjonov, 2015
 
@@ -35,3 +38,44 @@ NOTE: this command needs root permissions to keep all original file ownerships!
       otherwise the device might become inaccessible upon restoration via ./pushfs\n"
 if [ ! -d ./filesystem/ ]; then sudo mkdir ./filesystem/; fi
 sudo tar --same-owner -xpvz -C filesystem/ -f $TARBALL && rm $TARBALL || echo "error extracting. tarball remains."
+
+### PUSHFS ###
+##############
+
+#!/bin/bash
+# Author: Anton Semjonov, 2015
+
+# script uploads files in ./filesystem/ to ./host
+
+# only use 'true' or 'false' here .. this is not failsafe. 
+debug=false
+waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
+
+# GENERATE TIMESTAMP
+TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
+TARBALL=tarball-$TIMESTAMP.tar.gz
+
+# MAKE LOCAL TARBALL
+echo -e "creating tarball ..\n
+NOTE: this command needs root permissions to keep all file ownerships and permissions
+      otherwise your device might become inaccessible!\n"
+if [ "$(ls -A ./filesystem/)" ]; then
+ sudo tar -cpvz -C filesystem/ -f $TARBALL .
+ if $debug; then waitkey; fi
+else
+ echo -e "no files found .. was looking for ./filesystem/*"
+ exit 1
+fi
+
+# READ HOST
+HOST=`cat ./host | egrep -v "#" | xargs` 
+if $debug; then echo -e "\nconnecting to: $HOST"; fi
+
+# COPY TARBALL TO REMOTE
+echo -e "\ncopying tarball to remote /tmp .."
+scp ./$TARBALL $HOST:/tmp/ && rm -f ./$TARBALL
+if $debug; then waitkey; fi
+
+# EXTRACT REMOTELY
+echo -e "\nextracting $TARBALL in /tmp .."
+ssh $HOST -t "tar -xvz -C / -f /tmp/$TARBALL && rm -f /tmp/$TARBALL"
