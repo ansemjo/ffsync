@@ -6,16 +6,24 @@
 ### PULLFS ###
 ##############
 
+timestamp() { echo "$(date +%F--%H-%M-%S-%Z)"; } ## echo timestamp like: 2016-01-12--00-36-10-CET
+waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
+iff_ne() { test "$1" != "" && return 0 || return 1; } ## okay, iff $1 not empty
+iff_fi() { test -f "$1" && return 0 || return 1; } ## okay, iff $1 is regular file
+iff_di() { test -d "$1" && return 0 || return 1; } ## okay, iff $1 is a directory
+
+cat_the_crap() {
+    iff_ne $1 && iff_fi $1
+    cat "$1" | sed 's/#.*$//' | xargs
+}
 
 pull_filesystem () {
 # script downloads files in ./list from ./host into ./filesystem/
 
     # only use 'true' or 'false' here .. this is not failsafe. 
     debug=false
-    waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
 
     # GENERATE TIMSTAMP
-    TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
     TARBALL=tarball-$TIMESTAMP.tar.gz
 
     # BUILD FILE LIST
@@ -87,3 +95,7 @@ push_filesystem () {
 
 ## main () {
 echo "sorry, not implemented yet."
+echo "TIMESTAMP: $(timestamp)"
+waitkey
+echo $key
+cat_the_crap comments
