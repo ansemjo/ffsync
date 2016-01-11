@@ -1,81 +1,89 @@
+#!/bin/bash
+
+# Author:   anton@semjonov.de
+# Date:     January 2016
+
 ### PULLFS ###
 ##############
 
-#!/bin/bash
-# Author: Anton Semjonov, 2015
 
+pull_filesystem () {
 # script downloads files in ./list from ./host into ./filesystem/
 
-# only use 'true' or 'false' here .. this is not failsafe. 
-debug=false
-waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
+    # only use 'true' or 'false' here .. this is not failsafe. 
+    debug=false
+    waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
 
-# GENERATE TIMSTAMP
-TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
-TARBALL=tarball-$TIMESTAMP.tar.gz
+    # GENERATE TIMSTAMP
+    TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
+    TARBALL=tarball-$TIMESTAMP.tar.gz
 
-# BUILD FILE LIST
-FILES=`cat ./list | egrep -v "#" | sed 's|\n| |' | xargs`
-if $debug; then echo -e "building file list ..\n$FILES\n"; waitkey; fi
+    # BUILD FILE LIST
+    FILES=`cat ./list | egrep -v "#" | sed 's|\n| |' | xargs`
+    if $debug; then echo -e "building file list ..\n$FILES\n"; waitkey; fi
 
-# READ HOST
-HOST=`cat ./host | egrep -v "#" | xargs` 
-if $debug; then echo -e "connecting to: $HOST\n"; fi
+    # READ HOST
+    HOST=`cat ./host | egrep -v "#" | xargs` 
+    if $debug; then echo -e "connecting to: $HOST\n"; fi
 
-# CREATE REMOTE TARBALL
-echo "creating $TARBALL in /tmp .."
-ssh $HOST -t tar -cpvz -C / -f /tmp/$TARBALL $FILES
-if $debug; then waitkey; fi
+    # CREATE REMOTE TARBALL
+    echo "creating $TARBALL in /tmp .."
+    ssh $HOST -t tar -cpvz -C / -f /tmp/$TARBALL $FILES
+    if $debug; then waitkey; fi
 
-# COPY TARBALL
-echo -e "\ncopying file .."
-scp $HOST:/tmp/$TARBALL ./ && ssh $HOST -qt rm -f /tmp/$TARBALL
-if $debug; then waitkey; fi
+    # COPY TARBALL
+    echo -e "\ncopying file .."
+    scp $HOST:/tmp/$TARBALL ./ && ssh $HOST -qt rm -f /tmp/$TARBALL
+    if $debug; then waitkey; fi
 
-# EXTRACT TARBALL
-echo -e "\nextracting locally ..\n
-NOTE: this command needs root permissions to keep all original file ownerships!
-      otherwise the device might become inaccessible upon restoration via ./pushfs\n"
-if [ ! -d ./filesystem/ ]; then sudo mkdir ./filesystem/; fi
-sudo tar --same-owner -xpvz -C filesystem/ -f $TARBALL && rm $TARBALL || echo "error extracting. tarball remains."
+    # EXTRACT TARBALL
+    echo -e "\nextracting locally ..\n
+    NOTE: this command needs root permissions to keep all original file ownerships!
+          otherwise the device might become inaccessible upon restoration via ./pushfs\n"
+    if [ ! -d ./filesystem/ ]; then sudo mkdir ./filesystem/; fi
+    sudo tar --same-owner -xpvz -C filesystem/ -f $TARBALL && rm $TARBALL || echo "error extracting. tarball remains."
+
+}
 
 ### PUSHFS ###
 ##############
 
-#!/bin/bash
-# Author: Anton Semjonov, 2015
-
+push_filesystem () {
 # script uploads files in ./filesystem/ to ./host
 
-# only use 'true' or 'false' here .. this is not failsafe. 
-debug=false
-waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
+    # only use 'true' or 'false' here .. this is not failsafe. 
+    debug=false
+    waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
 
-# GENERATE TIMESTAMP
-TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
-TARBALL=tarball-$TIMESTAMP.tar.gz
+    # GENERATE TIMESTAMP
+    TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
+    TARBALL=tarball-$TIMESTAMP.tar.gz
 
-# MAKE LOCAL TARBALL
-echo -e "creating tarball ..\n
-NOTE: this command needs root permissions to keep all file ownerships and permissions
-      otherwise your device might become inaccessible!\n"
-if [ "$(ls -A ./filesystem/)" ]; then
- sudo tar -cpvz -C filesystem/ -f $TARBALL .
- if $debug; then waitkey; fi
-else
- echo -e "no files found .. was looking for ./filesystem/*"
- exit 1
-fi
+    # MAKE LOCAL TARBALL
+    echo -e "creating tarball ..\n
+    NOTE: this command needs root permissions to keep all file ownerships and permissions
+          otherwise your device might become inaccessible!\n"
+    if [ "$(ls -A ./filesystem/)" ]; then
+     sudo tar -cpvz -C filesystem/ -f $TARBALL .
+     if $debug; then waitkey; fi
+    else
+     echo -e "no files found .. was looking for ./filesystem/*"
+     exit 1
+    fi
 
-# READ HOST
-HOST=`cat ./host | egrep -v "#" | xargs` 
-if $debug; then echo -e "\nconnecting to: $HOST"; fi
+    # READ HOST
+    HOST=`cat ./host | egrep -v "#" | xargs` 
+    if $debug; then echo -e "\nconnecting to: $HOST"; fi
 
-# COPY TARBALL TO REMOTE
-echo -e "\ncopying tarball to remote /tmp .."
-scp ./$TARBALL $HOST:/tmp/ && rm -f ./$TARBALL
-if $debug; then waitkey; fi
+    # COPY TARBALL TO REMOTE
+    echo -e "\ncopying tarball to remote /tmp .."
+    scp ./$TARBALL $HOST:/tmp/ && rm -f ./$TARBALL
+    if $debug; then waitkey; fi
 
-# EXTRACT REMOTELY
-echo -e "\nextracting $TARBALL in /tmp .."
-ssh $HOST -t "tar -xvz -C / -f /tmp/$TARBALL && rm -f /tmp/$TARBALL"
+    # EXTRACT REMOTELY
+    echo -e "\nextracting $TARBALL in /tmp .."
+    ssh $HOST -t "tar -xvz -C / -f /tmp/$TARBALL && rm -f /tmp/$TARBALL"
+}
+
+## main () {
+echo "sorry, not implemented yet."
