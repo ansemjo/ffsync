@@ -1,14 +1,11 @@
 #!/bin/bash
 
-# Author:   anton@semjonov.de
-# Date:     january 2016
-
 default_listfile="./list"
 default_hostfile="./host"
-default_fsdir="filesystem"
-export default_listfile default_hostfile default_fsdir
+default_fsdir="./filesystem"
 
-boldfont() { echo -en "\e[1m$@\e[0m"; } ## output arguments in bold font
+boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
+err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
 
 yesno () { ## clean yes/no?
     echo -n " (y/n)? " 
@@ -20,8 +17,11 @@ yesno () { ## clean yes/no?
 }
 
 cat_the_crap() { ## parse a file and cut all comments (everything after a '#')
-    test "$1" != "" && test -f "$1" || { echo "$1 does not exist." && exit 10 ;}
-    cat "$1" | sed -r 's/(^| )#.*//' | xargs
+    local result="$2"
+    if [ -f "$1" ]; then
+        local cleaned="$(cat $1 | sed -r 's/(^| )#.*//' | xargs)"
+        eval $result="'$cleaned'"
+    else err "$1 does not exist."; exit 10; fi
 }
 
 modeselektor() { ## decide mode of operation
@@ -33,30 +33,27 @@ modeselektor() { ## decide mode of operation
     esac
 }
 
-set_filelist() { ## set $filelist
-    test "$optlistfile" != "" && if test -f "$optlistfile"; then 
-        export default_listfile="$optlistfile"; else echo "$optlistfile does not exist" && exit 2; fi
-    export filelist="$(cat_the_crap $default_listfile)"
-    test "$filelist" = "" && echo "\$filelist is empty!!" && exit 3
-}
-
 set_host() { ## set $host
-    test "$opthost" != "" && export host="$(echo $opthost | cut -d' ' -f1)" && return 0
-    export host="$(cat_the_crap $default_hostfile | cut -d' ' -f1)"
-    test "$host" = "" && echo "\$host is empty!!" && exit 4
+    if [ "$option_host" != "" ]; then
+        host="$(echo $option_host | cut -d' ' -f1)"
+    else
+        cat_the_crap $default_hostfile host
+        host="$(echo $host | cut -d' ' -f1)"
+    fi
+    test "$host" != "" || { err "\$host is empty!!" && exit 21 ;}
 }
 
 set_fsdir() { ## set $fsdir
-    if test "$optfsdir" != ""; then
-        export optfsdir="$(echo $optfsdir | sed 's|[/]*$||')"
-        if test -f "$optfsdir"; then
-            echo "$optfsdir exists and is a file!!" && exit 5
-        elif test -d "$optfsdir"; then
-            echo -n "will use $optfsdir. (overwrites when pulling!) ok"
-            yesno && export fsdir="$optfsdir" || exit 6
-        else export fsdir="$optfsdir"; fi
-    fi
-    test "$fsdir" != "" || export fsdir="$default_fsdir"
+    export fsdir="$(readlink -m $default_fsdir)"
+    test "$option_fsdir" != "" && export fsdir="$(readlink -m "$option_fsdir")"
+    test ! -f "$fsdir" || { err "$fsdir is an existing file. cannot use as \$fsdir." && exit 22 ;}
+}
+
+set_filelist() { ## set $filelist
+    export listfile="$default_listfile"
+    test "$option_listfile" != "" && export listfile="$option_listfile"
+    cat_the_crap $listfile filelist
+    test "$filelist" != "" || { err "\$filelist is empty!!"; exit 22; }
 }
 
 set_variables() {
@@ -71,7 +68,8 @@ set_variables() {
         boldfont "Files to pull: " && echo "$filelist"
     }
 
-    echo -ne "\nOK"; yesno || exit 30
+    #echo -ne "\nOK"; yesno || exit 30
+    exit 30
 }
 
 parse_args() { ## parse arguments as options
@@ -85,7 +83,7 @@ parse_args() { ## parse arguments as options
 # .. would save "true" into a variable 'three', "First Option" into 'one'
 #    and "SECOND" into 'two' when using above parser_optlist
     
-    export parser_optlist=(h:opthost l:optlistfile d:optfsdir)
+    export parser_optlist=(h:option_host l:option_listfile d:option_fsdir)
 
     for item in ${parser_optlist[@]}; do
         argument+=("$(echo $item | cut -c -2 | sed 's/*//')")
@@ -96,10 +94,12 @@ parse_args() { ## parse arguments as options
         for ((i = 0; i <= ${#argument}; i++)); do
             match="$(echo ${argument[$i]} | cut -c1)"
             if [ "$match" == "$_opt" ]; then
-                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ];
-                    then eval ${variable[$i]}="'$OPTARG'"
-                    else eval ${variable[$i]}="true"
-                fi; break
+                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ]; then
+                        eval ${variable[$i]}="'$OPTARG'"
+                    else
+                        eval ${variable[$i]}="true"
+                fi
+                break
             fi
         done
     done
