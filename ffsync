@@ -14,7 +14,9 @@ export tarball="ffsync-$(timestamp).tar.gz"
 waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
 verbose() { test "$_beVerbose" = "yes"; } ## test wether to be verbose?
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output arguments in bold font
-yesno () { echo -n " (y/n)? " ## POSIX-compliant yes/no?
+
+yesno () { ## POSIX-compliant yes/no?
+    echo -n " (y/n)? " 
     old_stty_cfg=$(stty -g); stty raw -echo
     answer=$( while ! head -c 1 | grep -i '[ny]' ; do true ; done )
     stty $old_stty_cfg
@@ -22,13 +24,12 @@ yesno () { echo -n " (y/n)? " ## POSIX-compliant yes/no?
     else echo no; return 1; fi
 }
 
-
-cat_the_crap() {
+cat_the_crap() { ## parse a file and cut all comments (evereything after a '#')
     test "$1" != "" && test -f "$1" || return 0
     cat "$1" | sed -r 's/(^| )#.*//' | xargs
 }
 
-get_filelist() {
+get_filelist() { ## set $filelist
     test "$optlistfile" != "" && if test -f "$optlistfile"; then 
         export _listfile="$optlistfile"; else echo "$optlistfile does not exist" && exit 2; fi
     export filelist="$(cat_the_crap $_listfile)"
@@ -36,20 +37,20 @@ get_filelist() {
     test "$filelist" = "" && echo "\$filelist is empty!!" && exit 3
 }
 
-get_host() {
+get_host() { ## set $host
     test "$opthost" != "" && export host="$(echo $opthost | cut -d' ' -f1)" && return 0
     export host="$(cat_the_crap $_hostfile | cut -d' ' -f1)"
     verbose && boldfont "getting host ... " && echo $host && waitkey
     test "$host" = "" && echo "\$host is empty!!" && exit 4
 }
 
-get_fsdir() {
+get_fsdir() { ## set $fsdir
     if test "$optfsdir" != ""; then
         export optfsdir="$(echo $optfsdir | sed 's|[/]*$||')"
         if test -f "$optfsdir"; then
             echo "$optfsdir exists and is a file!!" && exit 5
         elif test -d "$optfsdir"; then
-            echo -n "will overwrite files in $optfsdir. ok"
+            echo -n "will use $optfsdir. (overwrites when pulling!) ok"
             yesno && export fsdir="$optfsdir" || exit 6
         else export fsdir="$optfsdir"; fi
     fi
@@ -58,23 +59,27 @@ get_fsdir() {
 
 get_allthree() {
     get_host; get_filelist; get_fsdir;
+    boldfont "Host:          " && echo "$host"
+    boldfont "Directory:     " && echo "$(readlink -f "$fsdir")"
+    boldfont "Files to sync: " && echo "$filelist"
+    echo
 }
 
-modeselektor() {
+modeselektor() { ## decide mode of operation
     export mode="$1" && shift
 
     case "$mode" in
-        push    )   parseargs $@ && debugoptions ;;
-        pull    )   parseargs $@ && debugoptions ;;
+        push    )   parseargs $@ && get_allthree ;;
+        pull    )   parseargs $@ && get_allthree ;;
         *       )   howdoiturnthison ;;
     esac
 }
 
-howdoiturnthison() {
+howdoiturnthison() { ## usage info
     echo "Use some cheats? I don't know ..."
 }
 
-parseargs() {
+parseargs() { ## parse arguments as options
 # define beforehand: >$ export parser_optlist=(1:one 2:two 3*three)
 # where each option is: [X]{:/*}[...]
 #       X   - option to look for
@@ -107,23 +112,8 @@ parseargs() {
     done
 }
 
-debugoptions() {
-get_allthree
-
-boldfont " ### DEBUGGING ###\n\n"
-
-echo " Host:      $host"
-echo " Files:     $filelist"
-echo " Directory: $fsdir"
-
-}
-
 pull_filesystem () {
-    get_filelist;
-
-    # READ HOST
-    HOST=`cat ./host | egrep -v "#" | xargs` 
-    if $debug; then echo -e "connecting to: $HOST\n"; fi
+    get_allthree
 
     # CREATE REMOTE TARBALL
     echo "creating $TARBALL in /tmp .."
