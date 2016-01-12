@@ -72,8 +72,8 @@ modeselektor() { ## decide mode of operation
     export mode="$1" && shift
 
     case "$mode" in
+        pull    )   parseargs $@ && pull_filesystem ;;
         push    )   parseargs $@ && set_variables ;;
-        pull    )   parseargs $@ && set_variables ;;
         *       )   howdoiturnthison ;;
     esac
 }
@@ -119,26 +119,23 @@ pull_filesystem () {
     set_variables
 
     # CREATE REMOTE TARBALL
-    echo "creating $TARBALL in /tmp .."
-    ssh $HOST -t tar -cpvz -C / -f /tmp/$TARBALL $FILES
-    if $debug; then waitkey; fi
+    boldfont "\ncreating $tarball remotely in /tmp ..\n"
+    ssh $host -t tar -cpvz -C / -f /tmp/$tarball $filelist
 
-    # COPY TARBALL
-    echo -e "\ncopying file .."
-    scp $HOST:/tmp/$TARBALL ./ && ssh $HOST -qt rm -f /tmp/$TARBALL
-    if $debug; then waitkey; fi
+    # COPY TARBALL TO LOCAL MACHINE
+    boldfont "\ncopying file to local machine ..\n"
+    scp $host:/tmp/$tarball ./
+    ssh $host -qt rm -f /tmp/$tarball && echo "removed remote copy .."
 
-    # EXTRACT TARBALL
-    echo -e "\nextracting locally ..\n
-    NOTE: this command needs root permissions to keep all original file ownerships!
-          otherwise the device might become inaccessible upon restoration via ./pushfs\n"
-    if [ ! -d ./filesystem/ ]; then sudo mkdir ./filesystem/; fi
-    sudo tar --same-owner -xpvz -C filesystem/ -f $TARBALL && rm $TARBALL || echo "error extracting. tarball remains."
+    # EXTRACT TARBALL LOCALLY
+    boldfont "\nextracting tarball to $fsdir ..\n"
+    test -d $fsdir || mkdir $fsdir
+    tar -xpvz -C $fsdir -f $tarball && rm $tarball || echo "ERROR when extracting! tarball remains: $(readlink -f $tarball)"
 
 }
 
 push_filesystem () {
-# script uploads files in ./filesystem/ to ./host
+# script uploads ALL files in $fsdir to $host
 
     # only use 'true' or 'false' here .. this is not failsafe. 
     debug=false
