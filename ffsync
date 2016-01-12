@@ -3,6 +3,7 @@
 default_listfile="./list"
 default_hostfile="./host"
 default_fsdir="./filesystem"
+default_yess="true"
 
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
 err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
@@ -68,12 +69,13 @@ set_variables() {
         boldfont "Files to pull: " && echo "$filelist"
     }
 
-    #echo -ne "\nOK"; yesno || exit 30
-    exit 30
+    if [ "$option_yess" != "true" ] && [ "$default_yess" != "true" ]; then
+        echo -ne "\nOK"; yesno || exit 30
+    fi
 }
 
 parse_args() { ## parse arguments as options
-# define beforehand: >$ export parser_optlist=(1:one 2:two 3*three)
+# define beforehand: >$ parser_optlist=(1:one 2:two 3*three)
 # where each option is: [X]{:/*}[...]
 #       X   - option to look for
 #       :/* - :additional argument or *only boolean
@@ -83,22 +85,21 @@ parse_args() { ## parse arguments as options
 # .. would save "true" into a variable 'three', "First Option" into 'one'
 #    and "SECOND" into 'two' when using above parser_optlist
     
-    export parser_optlist=(h:option_host l:option_listfile d:option_fsdir)
+    parser_optlist=(h:option_host l:option_listfile d:option_fsdir y*option_yess)
 
     for item in ${parser_optlist[@]}; do
         argument+=("$(echo $item | cut -c -2 | sed 's/*//')")
         variable+=("$(echo $item | cut -c 3-)")
-    done; OPTIND=1;
+    done;
+    OPTIND=1;
 
     while getopts "$(echo ${argument[@]} | sed 's/ //g')" _opt; do
-        for ((i = 0; i <= ${#argument}; i++)); do
+        for ((i = 0; i < ${#argument[@]}; i++)); do
             match="$(echo ${argument[$i]} | cut -c1)"
             if [ "$match" == "$_opt" ]; then
-                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ]; then
-                        eval ${variable[$i]}="'$OPTARG'"
-                    else
-                        eval ${variable[$i]}="true"
-                fi
+                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ];
+                    then eval ${variable[$i]}="'$OPTARG'"
+                    else eval ${variable[$i]}="true"; fi
                 break
             fi
         done
