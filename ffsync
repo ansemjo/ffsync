@@ -29,7 +29,7 @@ cat_the_crap() { ## parse a file and cut all comments (evereything after a '#')
     cat "$1" | sed -r 's/(^| )#.*//' | xargs
 }
 
-get_filelist() { ## set $filelist
+set_filelist() { ## set $filelist
     test "$optlistfile" != "" && if test -f "$optlistfile"; then 
         export _listfile="$optlistfile"; else echo "$optlistfile does not exist" && exit 2; fi
     export filelist="$(cat_the_crap $_listfile)"
@@ -37,14 +37,14 @@ get_filelist() { ## set $filelist
     test "$filelist" = "" && echo "\$filelist is empty!!" && exit 3
 }
 
-get_host() { ## set $host
+set_host() { ## set $host
     test "$opthost" != "" && export host="$(echo $opthost | cut -d' ' -f1)" && return 0
     export host="$(cat_the_crap $_hostfile | cut -d' ' -f1)"
     verbose && boldfont "getting host ... " && echo $host && waitkey
     test "$host" = "" && echo "\$host is empty!!" && exit 4
 }
 
-get_fsdir() { ## set $fsdir
+set_fsdir() { ## set $fsdir
     if test "$optfsdir" != ""; then
         export optfsdir="$(echo $optfsdir | sed 's|[/]*$||')"
         if test -f "$optfsdir"; then
@@ -57,20 +57,23 @@ get_fsdir() { ## set $fsdir
     test "$fsdir" != "" || export fsdir="$_fsdir"
 }
 
-get_allthree() {
-    get_host; get_filelist; get_fsdir;
+set_variables() {
+    set_host
+    set_filelist
+    set_fsdir
+
     boldfont "Host:          " && echo "$host"
     boldfont "Directory:     " && echo "$(readlink -f "$fsdir")"
-    boldfont "Files to sync: " && echo "$filelist"
-    echo
+    boldfont "Tarball name:  " && echo "$tarball"
+    boldfont "Files to sync: " && echo -e "$filelist\n"
 }
 
 modeselektor() { ## decide mode of operation
     export mode="$1" && shift
 
     case "$mode" in
-        push    )   parseargs $@ && get_allthree ;;
-        pull    )   parseargs $@ && get_allthree ;;
+        push    )   parseargs $@ && set_variables ;;
+        pull    )   parseargs $@ && set_variables ;;
         *       )   howdoiturnthison ;;
     esac
 }
@@ -113,7 +116,7 @@ parseargs() { ## parse arguments as options
 }
 
 pull_filesystem () {
-    get_allthree
+    set_variables
 
     # CREATE REMOTE TARBALL
     echo "creating $TARBALL in /tmp .."
@@ -172,5 +175,4 @@ push_filesystem () {
 }
 
 ## main () {
-echo -e "TARBALL: $tarball\n"
 modeselektor $@
