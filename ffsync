@@ -5,24 +5,27 @@
 
 export _listfile="list"
 export _hostfile="host"
-
+export _beVerbose="yes"
 
 timestamp() { echo "$(date +%F--%H-%M-%S-%Z)"; } ## echo timestamp like: 2016-01-12--00-36-10-CET
+export tarball="ffsync-$(timestamp).tar.gz"
+
 waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
+verbose() { test "$_beVerbose" = "yes"; } ## test wether to be verbose?
+boldfont() { echo -e "\e[1m$@\e[0m"; } ## output arguments in bold font
 
 cat_the_crap() {
     test "$1" != "" && test -f "$1" || return 0
     cat "$1" | sed 's/#.*$//' | xargs
 }
 
+build_filelist() {
+    export filelist="$(cat_the_crap $_listfile)"
+    verbose && boldfont "building file list ..." && echo -e "$filelist\n" && waitkey
+}
+
 pull_filesystem () {
-# script downloads files in ./list from ./host into ./filesystem/
-
-    TARBALL="ffsync-$(timestamp).tar.gz"
-
-    # BUILD FILE LIST
-    FILES="$(cat_the_crap $_listfile)"
-    if $debug; then echo -e "building file list ..\n$FILES\n"; waitkey; fi
+    build_filelist;
 
     # READ HOST
     HOST=`cat ./host | egrep -v "#" | xargs` 
@@ -88,8 +91,5 @@ push_filesystem () {
 }
 
 ## main () {
-echo "sorry, not implemented yet."
-echo "TIMESTAMP: $(timestamp)"
-waitkey
-echo $key
-cat_the_crap comments
+boldfont "TARBALL: $tarball"
+build_filelist
