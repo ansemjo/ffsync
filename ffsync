@@ -3,18 +3,14 @@
 # Author:   anton@semjonov.de
 # Date:     january 2016
 
-_listfile="list"
-_hostfile="host"
-_fsdir="filesystem"
-export _listfile _hostfile _fsdir
+default_listfile="./list"
+default_hostfile="./host"
+default_fsdir="filesystem"
+export default_listfile default_hostfile default_fsdir
 
-timestamp() { echo "$(date +%F--%H-%M-%S-%Z)"; } ## echo timestamp like: 2016-01-12--00-36-10-CET
-export tarball="ffsync-$(timestamp).tar.gz"
-
-waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output arguments in bold font
 
-yesno () { ## POSIX-compliant yes/no?
+yesno () { ## clean yes/no?
     echo -n " (y/n)? " 
     old_stty_cfg=$(stty -g); stty raw -echo
     answer=$( while ! head -c 1 | grep -i '[ny]' ; do true ; done )
@@ -23,33 +19,30 @@ yesno () { ## POSIX-compliant yes/no?
     else echo no; return 1; fi
 }
 
-cat_the_crap() { ## parse a file and cut all comments (evereything after a '#')
-    test "$1" != "" && test -f "$1" || return 0
+cat_the_crap() { ## parse a file and cut all comments (everything after a '#')
+    test "$1" != "" && test -f "$1" || { echo "$1 does not exist." && exit 10 ;}
     cat "$1" | sed -r 's/(^| )#.*//' | xargs
 }
 
 modeselektor() { ## decide mode of operation
     export mode="$1" && shift
-
     case "$mode" in
-        pull    )   parseargs $@ && pull_filesystem ;;
-        push    )   parseargs $@ && push_filesystem ;;
-        pullOL  )   parseargs $@ && pull_oneliner ;;
-        pushOL  )   parseargs $@ && push_oneliner ;;
+        pull    )   pull_filesystem $@ ;;
+        push    )   push_filesystem $@ ;;
         *       )   howdoiturnthison ;;
     esac
 }
 
 set_filelist() { ## set $filelist
     test "$optlistfile" != "" && if test -f "$optlistfile"; then 
-        export _listfile="$optlistfile"; else echo "$optlistfile does not exist" && exit 2; fi
-    export filelist="$(cat_the_crap $_listfile)"
+        export default_listfile="$optlistfile"; else echo "$optlistfile does not exist" && exit 2; fi
+    export filelist="$(cat_the_crap $default_listfile)"
     test "$filelist" = "" && echo "\$filelist is empty!!" && exit 3
 }
 
 set_host() { ## set $host
     test "$opthost" != "" && export host="$(echo $opthost | cut -d' ' -f1)" && return 0
-    export host="$(cat_the_crap $_hostfile | cut -d' ' -f1)"
+    export host="$(cat_the_crap $default_hostfile | cut -d' ' -f1)"
     test "$host" = "" && echo "\$host is empty!!" && exit 4
 }
 
@@ -63,28 +56,25 @@ set_fsdir() { ## set $fsdir
             yesno && export fsdir="$optfsdir" || exit 6
         else export fsdir="$optfsdir"; fi
     fi
-    test "$fsdir" != "" || export fsdir="$_fsdir"
+    test "$fsdir" != "" || export fsdir="$default_fsdir"
 }
 
 set_variables() {
     set_host
-    set_filelist
-    set_fsdir
-
     boldfont "Host:          " && echo "$host"
+
+    set_fsdir
     boldfont "Directory:     " && echo "$(readlink -f "$fsdir")"
-    boldfont "Tarball name:  " && echo "$tarball"
-    boldfont "Files to sync: " && echo "$filelist"
 
-    #boldfont "\nOK"; yesno || exit 10
+    test "$mode" = "pull" && {
+        set_filelist
+        boldfont "Files to pull: " && echo "$filelist"
+    }
+
+    echo -ne "\nOK"; yesno || exit 30
 }
 
-
-howdoiturnthison() { ## usage info
-    echo "Use some cheats? I don't know ..."
-}
-
-parseargs() { ## parse arguments as options
+parse_args() { ## parse arguments as options
 # define beforehand: >$ export parser_optlist=(1:one 2:two 3*three)
 # where each option is: [X]{:/*}[...]
 #       X   - option to look for
@@ -106,74 +96,40 @@ parseargs() { ## parse arguments as options
         for ((i = 0; i <= ${#argument}; i++)); do
             match="$(echo ${argument[$i]} | cut -c1)"
             if [ "$match" == "$_opt" ]; then
-                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ]; then
-                    eval ${variable[$i]}="'$OPTARG'"
-                else
-                    eval ${variable[$i]}="true"
-                fi
-                break
+                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ];
+                    then eval ${variable[$i]}="'$OPTARG'"
+                    else eval ${variable[$i]}="true"
+                fi; break
             fi
         done
     done
 }
 
 pull_filesystem() {
+    parse_args $@
     set_variables
 
-    # CREATE REMOTE TARBALL
-    boldfont "\ncreating tarball remotely in /tmp ..\n"
-    ssh $host -t tar -cpvz -C / -f /tmp/$tarball $filelist
-
-    # MOVE TARBALL TO LOCAL MACHINE
-    boldfont "\ncopying file to local machine ..\n"
-    scp $host:/tmp/$tarball ./
-    ssh $host -qt rm -f /tmp/$tarball && echo "removed remote copy .."
-
-    # EXTRACT TARBALL LOCALLY
-    boldfont "\nextracting tarball locally ..\n"
     test -d $fsdir || mkdir $fsdir
-    tar -xpvz -C $fsdir -f $tarball && rm $tarball || echo "ERROR when extracting! tarball remains: $(readlink -f $tarball)"
 
-}
-
-pull_oneliner() {
-    set_variables
     boldfont "\nfetching files ..\n"
-    test -d $fsdir || mkdir $fsdir
-
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
     ssh $host "tar cpvzf - -C / $filelist" | tar xpzf - -C $fsdir
 }
 
 push_filesystem() { ## script uploads ALL files in $fsdir to $host
+    parse_args $@
     set_variables
 
-    # MAKE LOCAL TARBALL
-    boldfont "\ncreating tarball locally ..\n"
-    if [ "$(ls -A "$fsdir")" ]; then
-     tar -cpvz -C $fsdir -f $tarball . --owner=0 --group=0
-    else
-     echo "no files found .. was looking for $fsdir"
-     exit 1
-    fi
-
-    # MOVE TARBALL TO REMOTE MACHINE
-    boldfont "\nmoving tarball to remote /tmp ..\n"
-    scp $tarball $host:/tmp/ && rm -f ./$tarball
-
-    # EXTRACT REMOTELY
-    boldfont "\nextracting tarball remotely ..\n"
-    ssh $host -t "tar -xvz -C / -f /tmp/$tarball && rm -f /tmp/$tarball"
-}
-
-push_oneliner() {
-    set_variables
-    boldfont "\npushing files ..\n"
     test -d "$fsdir" || { echo "directory $fsdir does not exist." && exit 10 ;}
     test "$(ls -A "$fsdir" 2>/dev/null)" || { echo "directory $fsdir is empty." && exit 12 ;}
 
+    boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
     tar cpzf - -C $fsdir . --owner=0 --group=0 | ssh $host "tar xvzf - -C /"
+}
+
+howdoiturnthison() { ## usage info
+    echo "Use some cheats? I don't know ..."
 }
 
 ## main () {
