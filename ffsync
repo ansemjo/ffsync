@@ -130,7 +130,31 @@ push_filesystem() { ## script uploads ALL files in $fsdir to $host
 }
 
 howdoiturnthison() { ## usage info
-    echo "Use some cheats? I don't know ..."
+    fn="$(basename $0)"
+    echo "
+ $ $fn <mode> [-h host] [-d directory] [-l listfile] [-y]
+
+<mode> is one of:
+    push  - copy ALL files in \$fsdir to the remote \$host
+    pull  - copy the files listed in \$listfile from \$host and save to \$fsdir
+
+ \$host is read from ./host by default
+ \$fsdir is set to ./filesystem/ by default
+ \$filelist is set to ./list by default
+
+These variables can be overriden with the following options:
+    [-h HOST] - connect to HOST instead
+    [-d DIRECTORY] - use DIRECTORY for \$fsdir instead
+    [-l LISTFILE] - read the filelist from LISTFILE instead
+    [-y] - override the confirmation dialog before action
+
+This script only uses a single string as the remote host, so it is almost mandatory to have a corresponding hostconfig in ~/.ssh/ssh_config or /etc/ssh/ssh_config.
+
+Example: Write the name of your host into ./host and a list of files / directories into ./list. Then execute:
+    $ $fn pull -y
+
+The script compresses all files with tar to stdout, pipes that through ssh, where another tar extracts from stdin. This preserves directory structure and you can directly push an entire structure to your host. However, when pushing uid and gid of all files are set to 0 (root) as this script was intended for router configuration backups, which usually only have one root user. Doing this bypasses the need for root locally and preserves proper file ownerships/permissions on the remote device.
+"
 }
 
 ## main () {
