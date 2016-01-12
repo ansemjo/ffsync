@@ -65,7 +65,7 @@ set_variables() {
     boldfont "Host:          " && echo "$host"
     boldfont "Directory:     " && echo "$(readlink -f "$fsdir")"
     boldfont "Tarball name:  " && echo "$tarball"
-    boldfont "Files to sync: " && echo -e "$filelist\n"
+    boldfont "Files to sync: " && echo "$filelist"
 }
 
 modeselektor() { ## decide mode of operation
@@ -73,7 +73,7 @@ modeselektor() { ## decide mode of operation
 
     case "$mode" in
         pull    )   parseargs $@ && pull_filesystem ;;
-        push    )   parseargs $@ && set_variables ;;
+        push    )   parseargs $@ && push_filesystem ;;
         *       )   howdoiturnthison ;;
     esac
 }
@@ -119,56 +119,40 @@ pull_filesystem () {
     set_variables
 
     # CREATE REMOTE TARBALL
-    boldfont "\ncreating $tarball remotely in /tmp ..\n"
+    boldfont "\ncreating tarball remotely in /tmp ..\n"
     ssh $host -t tar -cpvz -C / -f /tmp/$tarball $filelist
 
-    # COPY TARBALL TO LOCAL MACHINE
+    # MOVE TARBALL TO LOCAL MACHINE
     boldfont "\ncopying file to local machine ..\n"
     scp $host:/tmp/$tarball ./
     ssh $host -qt rm -f /tmp/$tarball && echo "removed remote copy .."
 
     # EXTRACT TARBALL LOCALLY
-    boldfont "\nextracting tarball to $fsdir ..\n"
+    boldfont "\nextracting tarball locally ..\n"
     test -d $fsdir || mkdir $fsdir
     tar -xpvz -C $fsdir -f $tarball && rm $tarball || echo "ERROR when extracting! tarball remains: $(readlink -f $tarball)"
 
 }
 
-push_filesystem () {
-# script uploads ALL files in $fsdir to $host
-
-    # only use 'true' or 'false' here .. this is not failsafe. 
-    debug=false
-    waitkey() (read -rsp $'Press any key to continue...\n' -n1 key)
-
-    # GENERATE TIMESTAMP
-    TIMESTAMP=`date +%Y%h%d-%H%M%s` && echo -e "process timestamp: $TIMESTAMP\n" || exit 1
-    TARBALL=tarball-$TIMESTAMP.tar.gz
+push_filesystem () { ## script uploads ALL files in $fsdir to $host
+    set_variables
 
     # MAKE LOCAL TARBALL
-    echo -e "creating tarball ..\n
-    NOTE: this command needs root permissions to keep all file ownerships and permissions
-          otherwise your device might become inaccessible!\n"
-    if [ "$(ls -A ./filesystem/)" ]; then
-     sudo tar -cpvz -C filesystem/ -f $TARBALL .
-     if $debug; then waitkey; fi
+    boldfont "\ncreating tarball locally ..\n"
+    if [ "$(ls -A "$fsdir")" ]; then
+     tar -cpvz -C $fsdir -f $tarball . --owner=0 --group=0
     else
-     echo -e "no files found .. was looking for ./filesystem/*"
+     echo "no files found .. was looking for $fsdir"
      exit 1
     fi
 
-    # READ HOST
-    HOST=`cat ./host | egrep -v "#" | xargs` 
-    if $debug; then echo -e "\nconnecting to: $HOST"; fi
-
-    # COPY TARBALL TO REMOTE
-    echo -e "\ncopying tarball to remote /tmp .."
-    scp ./$TARBALL $HOST:/tmp/ && rm -f ./$TARBALL
-    if $debug; then waitkey; fi
+    # MOVE TARBALL TO REMOTE MACHINE
+    boldfont "\nmoving tarball to remote /tmp ..\n"
+    scp $tarball $host:/tmp/ && rm -f ./$tarball
 
     # EXTRACT REMOTELY
-    echo -e "\nextracting $TARBALL in /tmp .."
-    ssh $HOST -t "tar -xvz -C / -f /tmp/$TARBALL && rm -f /tmp/$TARBALL"
+    boldfont "\nextracting tarball remotely ..\n"
+    ssh $host -t "tar -xvz -C / -f /tmp/$tarball && rm -f /tmp/$tarball"
 }
 
 ## main () {
