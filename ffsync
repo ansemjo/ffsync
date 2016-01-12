@@ -3,7 +3,7 @@
 default_listfile="./list"
 default_hostfile="./host"
 default_fsdir="./filesystem"
-default_yess="true"
+default_yess="false"
 
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
 err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
