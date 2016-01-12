@@ -13,6 +13,14 @@ export tarball="ffsync-$(timestamp).tar.gz"
 waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
 verbose() { test "$_beVerbose" = "yes"; } ## test wether to be verbose?
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output arguments in bold font
+yesno () { echo -n " (y/n)? " ## POSIX-compliant yes/no?
+    old_stty_cfg=$(stty -g); stty raw -echo
+    answer=$( while ! head -c 1 | grep -i '[ny]' ; do true ; done )
+    stty $old_stty_cfg
+    if echo "$answer" | grep -iq "^y" ; then echo yes; return 0
+    else echo no; return 1; fi
+}
+
 
 cat_the_crap() {
     test "$1" != "" && test -f "$1" || return 0
@@ -158,5 +166,5 @@ push_filesystem () {
 
 ## main () {
 echo -e "TARBALL: $tarball\n"
-
 modeselektor $@
+echo -n "OK"; yesno || exit 99
