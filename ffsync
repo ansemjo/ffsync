@@ -5,27 +5,93 @@
 
 export _listfile="list"
 export _hostfile="host"
-export _beVerbose="yes"
+export _beVerbose="no"
 
 timestamp() { echo "$(date +%F--%H-%M-%S-%Z)"; } ## echo timestamp like: 2016-01-12--00-36-10-CET
 export tarball="ffsync-$(timestamp).tar.gz"
 
 waitkey() { local void; read -rsp $'Press any key to continue...\n' -n1 void; } ## wait on any keypress ..
 verbose() { test "$_beVerbose" = "yes"; } ## test wether to be verbose?
-boldfont() { echo -e "\e[1m$@\e[0m"; } ## output arguments in bold font
+boldfont() { echo -en "\e[1m$@\e[0m"; } ## output arguments in bold font
 
 cat_the_crap() {
     test "$1" != "" && test -f "$1" || return 0
     cat "$1" | sed 's/#.*$//' | xargs
 }
 
-build_filelist() {
+get_filelist() {
     export filelist="$(cat_the_crap $_listfile)"
-    verbose && boldfont "building file list ..." && echo -e "$filelist\n" && waitkey
+    verbose && boldfont "building file list from $_listfile...\n" && echo -e "$filelist\n" && waitkey
+}
+
+get_host() {
+    test "$host" != "" && return 0
+    export host="$(cat_the_crap $_hostfile)"
+    verbose && boldfont "getting host ... " && echo $host && waitkey
+}
+
+modeselektor() {
+    export mode="$1" && shift
+
+    case "$mode" in
+        push    )   parseargs $@ && debugoptions ;;
+        pull    )   parseargs $@ && debugoptions ;;
+        init    )   init_syncdir ;;
+        *       )   howdoiturnthison ;;
+    esac
+}
+
+howdoiturnthison() {
+    echo "Use some cheats? I don't know ..."
+}
+
+parseargs() {
+# define beforehand: >$ export parser_optlist=(1:one 2:two 3*three)
+# where each option is: [X]{:/*}[...]
+#       X   - option to look for
+#       :/* - :additional argument or *only boolean
+#       ... - name of variable to save to
+#
+# >$ parseargs -3 -1 "First Option" -2 SECOND
+# .. would save "true" into a variable 'three', "First Option" into 'one'
+#    and "SECOND" into 'two' when using above parser_optlist
+    
+    export parser_optlist=(h:host l:_listfile d:fsdirectory)
+
+    for item in ${parser_optlist[@]}; do
+        argument+=("$(echo $item | cut -c -2 | sed 's/*//')")
+        variable+=("$(echo $item | cut -c 3-)")
+    done; OPTIND=1;
+
+    while getopts "$(echo ${argument[@]} | sed 's/ //g')" _opt; do
+        for ((i = 0; i <= ${#argument}; i++)); do
+            match="$(echo ${argument[$i]} | cut -c1)"
+            if [ "$match" == "$_opt" ]; then
+                if [ "$(echo ${argument[$i]} | cut -c2)" == ":" ]; then
+                    eval ${variable[$i]}="'$OPTARG'"
+                else
+                    eval ${variable[$i]}="true"
+                fi
+                break
+            fi
+        done
+    done
+}
+
+debugoptions() {
+get_filelist
+get_host
+
+boldfont " ### DEBUGGING ###\n\n"
+
+echo " Host:      $host"
+echo " Files:     $filelist"
+echo " Directory: $fsdirectory"
+
 }
 
 pull_filesystem () {
-    build_filelist;
+    get_filelist;
 
     # READ HOST
     HOST=`cat ./host | egrep -v "#" | xargs` 
@@ -91,5 +157,6 @@ push_filesystem () {
 }
 
 ## main () {
-boldfont "TARBALL: $tarball"
-build_filelist
+echo -e "TARBALL: $tarball\n"
+
+modeselektor $@
