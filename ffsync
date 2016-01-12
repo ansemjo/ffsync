@@ -24,18 +24,20 @@ yesno () { echo -n " (y/n)? " ## POSIX-compliant yes/no?
 
 cat_the_crap() {
     test "$1" != "" && test -f "$1" || return 0
-    cat "$1" | sed 's/#.*$//' | xargs
+    cat "$1" | sed -r 's/(^| )#.*//' | xargs
 }
 
 get_filelist() {
     export filelist="$(cat_the_crap $_listfile)"
     verbose && boldfont "building file list from $_listfile...\n" && echo -e "$filelist\n" && waitkey
+    test "$filelist" = "" && echo "\$filelist is empty!!" && exit 3
 }
 
 get_host() {
-    test "$host" != "" && return 0
-    export host="$(cat_the_crap $_hostfile)"
+    test "$host" != "" && export host="$(echo $host | cut -d' ' -f1)" && return 0
+    export host="$(cat_the_crap $_hostfile | cut -d' ' -f1)"
     verbose && boldfont "getting host ... " && echo $host && waitkey
+    test "$host" = "" && echo "\$host is empty!!" && exit 2
 }
 
 modeselektor() {
@@ -167,4 +169,3 @@ push_filesystem () {
 ## main () {
 echo -e "TARBALL: $tarball\n"
 modeselektor $@
-echo -n "OK"; yesno || exit 99
