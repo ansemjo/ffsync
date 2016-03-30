@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 default_listfile="./list"
 default_hostfile="./host"
@@ -15,6 +15,30 @@ yesno () { ## clean yes/no?
     stty $old_stty_cfg
     if echo "$answer" | grep -iq "^y" ; then echo yes; return 0
     else echo no; return 1; fi
+}
+
+parse_yaml() {
+# From https://gist.github.com/epiloque/8cf512c6d64641bde388
+# Based on https://gist.github.com/pkuczynski/8665367
+
+    local prefix=$2
+    local s
+    local w
+    local fs
+    s='[[:space:]]*'
+    w='[a-zA-Z0-9_]*'
+    fs="$(echo @|tr @ '\034')"
+    sed -ne "s|^\($s\)\($w\)$s:$s\"\(.*\)\"$s\$|\1$fs\2$fs\3|p" \
+        -e "s|^\($s\)\($w\)$s[:-]$s\(.*\)$s\$|\1$fs\2$fs\3|p" "$1" |
+    awk -F"$fs" '{
+    indent = length($1)/4;
+    vname[indent] = $2;
+    for (i in vname) {if (i > indent) {delete vname[i]}}
+        if (length($3) > 0) {
+            vn=""; for (i=0; i<indent; i++) {vn=(vn)(vname[i])("_")}
+            printf("%s%s%s=(\"%s\")\n", "'"$prefix"'",vn, $2, $3);
+        }
+    }' | sed 's/_=/+=/g'
 }
 
 cat_the_crap() { ## parse a file and cut all comments (everything after a '#')
@@ -114,7 +138,8 @@ pull_filesystem() {
 
     boldfont "\nfetching files ..\n"
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
-    ssh $host "tar cpvzf - -C / $filelist" | tar xpzf - -C $fsdir
+    # ssh $host "tar cpvzf - -C / $filelist" | tar xpzf - -C $fsdir
+    echo "SSH PULL HERE"
 }
 
 push_filesystem() { ## script uploads ALL files in $fsdir to $host
@@ -126,7 +151,8 @@ push_filesystem() { ## script uploads ALL files in $fsdir to $host
 
     boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
-    tar cpzf - -C $fsdir . --owner=0 --group=0 | ssh $host "tar xvzf - -C /"
+    # tar cpzf - -C $fsdir . --owner=0 --group=0 | ssh $host "tar xvzf - -C /"
+    echo "SSH PUSH HERE"
 }
 
 howdoiturnthison() { ## usage info
