@@ -13,8 +13,8 @@ yesno () {
     old_stty_cfg=$(stty -g); stty raw -echo
     answer=$( while ! head -c 1 | grep -i '[ny]' ; do true ; done )
     stty $old_stty_cfg
-    if echo "$answer" | grep -iq "^y" ; then echo yes; return 0
-    else echo no; return 1; fi
+    if echo "$answer" | grep -iq "^y" ; then echo -e "yes\n"; return 0
+    else echo -e "no\n"; return 1; fi
 }
 
 
@@ -78,65 +78,36 @@ parse_yaml() {
 }
 
 
-# SET SSH REMOTE HOST
-set_host() {
-    if [ "$option_host" != "" ]; then
-        host="$(echo $option_host | cut -d' ' -f1)"
-    else
-        cat_the_crap $default_hostfile host
-        host="$(echo $host | cut -d' ' -f1)"
-    fi
-    test "$host" != "" || { err "\$host is empty!!" && exit 21 ;}
-}
-
-
-# SET FILESYSTEM DIRECTORY
-set_datadir() {
-    export datadir="$(readlink -m $default_datadir)"
-    test "$option_datadir" != "" && export datadir="$(readlink -m "$option_datadir")"
-    test ! -f "$datadir" || { err "$datadir is an existing file. cannot use as \$datadir." && exit 22 ;}
-}
-
-
-# SET LIST OF FILES TO FETCH/PUSH
-set_filelist() {
-    export listfile="$default_listfile"
-    test "$option_listfile" != "" && export listfile="$option_listfile"
-    cat_the_crap $listfile filelist
-    test "$filelist" != "" || { err "\$filelist is empty!!"; exit 22; }
-}
-
-
 # UNIVERSALLY SET VARIABLE
 set_variable() {
     for priority in option yamlconf default; do
         local va="${priority}_$1[@]"
         if [ "$(echo ${!va})" != "" ]; then
-            err "set_variable $1: $va --> '${!va}'"
-            eval export $1="'${!va}'"
+            if [[ $2 = *firstarg* ]]; then
+                eval export $1="'$(echo "${!va}" | cut -d' ' -f1)'"
+            else
+                eval export $1="'${!va}'"
+            fi
+            debug && err "set_variable $1: $va --> '${!1}'"
             return 0
         fi
     done
-    err "no value for '$1'! abort."
-    exit 1
+    if [[ $2 = *required* ]]; then
+        err "no value for '$1'! abort."
+        exit 1
+    fi
 }
 
 
-# SET ALL VARIABLES
-set_variables() {
-    set_host
-    boldfont "Host:          " && echo "$host"
-
-    set_datadir
-    boldfont "Directory:     " && echo "$(readlink -f "$datadir")"
-
-    test "$mode" = "pull" && {
-        set_filelist
-        boldfont "Files to pull: " && echo "$filelist"
-    }
-
-    if [ "$option_yess" != "true" ] && [ "$default_yess" != "true" ]; then
-        echo -ne "\nOK"; yesno || exit 30
+# CHECK VALUES BEFORE ACTION
+check() {
+    [ -n "$*" ] || return 1
+    for value in "$@"; do
+        boldfont "$value: "
+        echo "'${!value}'"
+    done
+    if [ "$yesyes" != "true" ]; then
+        echo -ne "\nOK"; yesno || exit 1
     fi
 }
 
@@ -192,12 +163,6 @@ The script compresses all files with tar to stdout, pipes that through ssh, wher
     exit 1
 }
 
-
-# DELETEME
-cat_the_crap() {
-    return 1
-}
-
 # ---------------------------------------------
 
 # SELECT MODE OR SHOW HELP
@@ -206,31 +171,24 @@ case "$1" in
     push    )   mode="push_filesystem" ;;
     *       )   howdoiturnthison ;;
 esac; shift
-debug && boldfont "mode $mode selected\n"
+debug && err "mode $mode selected"
 
 # PARSE ARGUMENTS ON CMDLINE
 parse_arguments "$@"
-debug && { boldfont "arguments parsed:\n"
-for option in $(compgen -v | grep "^option"); do
-    echo "$option = ${!option}"
-done }
+debug && { err "arguments on commandline:"; check $(compgen -v | grep "^option_" | sed 's/$/[@]/'); }
 
-set_variable configfile
+# SET CONFIG FILE
+set_variable configfile firstarg
 
 # PARSE YAML CONFIGFILE
 eval $(parse_yaml "$configfile" "yamlconf_")
-debug && { boldfont "YAML file parsed: (only first argument shown)\n"
-for option in $(compgen -v | grep "^yamlconf_"); do
-    echo "$option = ${!option}"
-done }
+debug && { err "parsed yaml config:"; check $(compgen -v | grep "^yamlconf_" | sed 's/$/[@]/'); }
 
-for vn in datadir hostname filelist; do
-    set_variable $vn
+# SET $DATADIR AND $HOSTNAME
+for var in datadir hostname; do
+    set_variable $var required,firstarg
 done
+check hostname datadir
 
-boldfont "parsed all vars:
-configfile:     $configfile
-datadir:        $datadir
-hostname:       $hostname
-filelist:       $filelist
-"
+# RUN SELECTED MODE
+$mode
