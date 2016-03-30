@@ -1,0 +1,17 @@
+# Configuration file for ffsync in YAML format
+
+# remote hostname
+hostname:   freifunk-node
+# where filesystem tree is saved
+datadir:    filesystem
+# skip check before transmitting files
+yesyes:     false
+# list of files to fetch, pushing copies ALL files in $datadir
+filelist:
+    - /etc/profile
+    - /etc/hosts
+    - /etc/sysupgrade.conf
+    - /etc/dropbear/authorized_keys
+    - /etc/config/network
+    - /etc/config/wireless
+    - /root/
