@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-default_configfile="ffsync.yml"
-default_datadir="filesystem"
-default_yesyes="true"
+configfile="ffsync.yml"
+debug() { return 0; }
 
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
 err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
@@ -40,16 +39,15 @@ parse_yaml() {
     }' | sed 's/_=/+=/g'
 }
 
-modeselektor() { ## decide mode of operation
-    export mode="$1" && shift
-    case "$mode" in
-        pull    )   pull_filesystem $@ ;;
-        push    )   push_filesystem $@ ;;
+modeselektor() {
+    case "$1" in
+        pull    )   mode="pull_filesystem" ;;
+        push    )   mode="push_filesystem" ;;
         *       )   howdoiturnthison ;;
     esac
 }
 
-set_host() { ## set $host
+set_host() {
     if [ "$option_host" != "" ]; then
         host="$(echo $option_host | cut -d' ' -f1)"
     else
@@ -59,10 +57,10 @@ set_host() { ## set $host
     test "$host" != "" || { err "\$host is empty!!" && exit 21 ;}
 }
 
-set_fsdir() { ## set $fsdir
-    export fsdir="$(readlink -m $default_fsdir)"
-    test "$option_fsdir" != "" && export fsdir="$(readlink -m "$option_fsdir")"
-    test ! -f "$fsdir" || { err "$fsdir is an existing file. cannot use as \$fsdir." && exit 22 ;}
+set_datadir() {
+    export datadir="$(readlink -m $default_datadir)"
+    test "$option_datadir" != "" && export datadir="$(readlink -m "$option_datadir")"
+    test ! -f "$datadir" || { err "$datadir is an existing file. cannot use as \$datadir." && exit 22 ;}
 }
 
 set_filelist() { ## set $filelist
@@ -76,8 +74,8 @@ set_variables() {
     set_host
     boldfont "Host:          " && echo "$host"
 
-    set_fsdir
-    boldfont "Directory:     " && echo "$(readlink -f "$fsdir")"
+    set_datadir
+    boldfont "Directory:     " && echo "$(readlink -f "$datadir")"
 
     test "$mode" = "pull" && {
         set_filelist
@@ -89,7 +87,7 @@ set_variables() {
     fi
 }
 
-parse_args() { ## parse arguments as options
+parse_arguments() {
 # define beforehand: >$ parser_optlist=(1:one 2:two 3*three)
 # where each option is: [X]{:/*}[...]
 #       X   - option to look for
@@ -100,7 +98,7 @@ parse_args() { ## parse arguments as options
 # .. would save "true" into a variable 'three', "First Option" into 'one'
 #    and "SECOND" into 'two' when using above parser_optlist
     
-    parser_optlist=(h:option_host l:option_listfile d:option_fsdir y*option_yess)
+    parser_optlist=(c:option_configfile h:option_host l:option_list d:option_datadir y*option_yess)
 
     for item in ${parser_optlist[@]}; do
         argument+=("$(echo $item | cut -c -2 | sed 's/*//')")
@@ -122,26 +120,20 @@ parse_args() { ## parse arguments as options
 }
 
 pull_filesystem() {
-    parse_args $@
-    set_variables
-
-    test -d $fsdir || mkdir $fsdir
+    test -d $datadir || mkdir $datadir
 
     boldfont "\nfetching files ..\n"
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
-    echo "ssh $host \"tar cpvzf - -C / $filelist\" | tar xpzf - -C $fsdir"
+    echo "ssh $host \"tar cpvzf - -C / $filelist\" | tar xpzf - -C $datadir"
 }
 
-push_filesystem() { ## script uploads ALL files in $fsdir to $host
-    parse_args $@
-    set_variables
-
-    test -d "$fsdir" || { echo "directory $fsdir does not exist." && exit 10 ;}
-    test "$(ls -A "$fsdir" 2>/dev/null)" || { echo "directory $fsdir is empty." && exit 12 ;}
+push_filesystem() { ## script uploads ALL files in $datadir to $host
+    test -d "$datadir" || { echo "directory $datadir does not exist." && exit 10 ;}
+    test "$(ls -A "$datadir" 2>/dev/null)" || { echo "directory $datadir is empty." && exit 12 ;}
 
     boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
-    echo "tar cpzf - -C $fsdir . --owner=0 --group=0 | ssh $host \"tar xvzf - -C /\""
+    echo "tar cpzf - -C $datadir . --owner=0 --group=0 | ssh $host \"tar xvzf - -C /\""
 }
 
 howdoiturnthison() { ## usage info
@@ -150,16 +142,16 @@ howdoiturnthison() { ## usage info
  $ $fn <mode> [-h host] [-d directory] [-l listfile] [-y]
 
 <mode> is one of:
-    push  - copy ALL files in \$fsdir to the remote \$host
-    pull  - copy the files listed in \$listfile from \$host and save to \$fsdir
+    push  - copy ALL files in \$datadir to the remote \$host
+    pull  - copy the files listed in \$listfile from \$host and save to \$datadir
 
  \$host is read from ./host by default
- \$fsdir is set to ./filesystem/ by default
+ \$datadir is set to ./filesystem/ by default
  \$filelist is set to ./list by default
 
 These variables can be overriden with the following options:
     [-h HOST] - connect to HOST instead
-    [-d DIRECTORY] - use DIRECTORY for \$fsdir instead
+    [-d DIRECTORY] - use DIRECTORY for \$datadir instead
     [-l LISTFILE] - read the filelist from LISTFILE instead
     [-y] - override the confirmation dialog before action
 
@@ -170,12 +162,33 @@ Example: Write the name of your host into ./host and a list of files / directori
 
 The script compresses all files with tar to stdout, pipes that through ssh, where another tar extracts from stdin. This preserves directory structure and you can directly push an entire structure to your host. However, when pushing uid and gid of all files are set to 0 (root) as this script was intended for router configuration backups, which usually only have one root user. Doing this bypasses the need for root locally and preserves proper file ownerships/permissions on the remote device.
 "
+    exit 1
 }
 
 cat_the_crap() {
     return 1
 }
 
-parse_yaml $default_configfile
+# ---------------------------------------------
 
-modeselektor $@
+# SELECT MODE OR SHOW HELP
+modeselektor $1 && shift
+debug && boldfont "mode $mode selected\n"
+
+# PARSE ARGUMENTS ON CMDLINE
+parse_arguments "$@"
+debug && { boldfont "arguments parsed:\n"
+for option in $(compgen -v | grep "^option"); do
+    echo "$option = ${!option}"
+done }
+
+# PARSE YAML CONFIGFILE
+eval $(parse_yaml $configfile "yamlconf_")
+debug && { boldfont "YAML file parsed: (only first argument shown)\n"
+for option in $(compgen -v | grep "^yamlconf_"); do
+    echo "$option = ${!option}"
+done }
+
+
+set_variables
+
