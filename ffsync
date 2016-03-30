@@ -194,6 +194,7 @@ debug && { echo "parsed yaml config:"; check yesyes $(compgen -v | grep "^yamlco
 for var in datadir hostname; do
     set_variable $var required,firstarg
 done
+set_variable yesyes
 
 # RUN SELECTED MODE
 $mode
