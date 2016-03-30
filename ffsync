@@ -6,7 +6,9 @@ debug() { return 0; }
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
 err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
 
-yesno () { ## clean yes/no?
+
+# YES NO QUESTION
+yesno () {
     echo -n " (y/n)? " 
     old_stty_cfg=$(stty -g); stty raw -echo
     answer=$( while ! head -c 1 | grep -i '[ny]' ; do true ; done )
@@ -15,6 +17,8 @@ yesno () { ## clean yes/no?
     else echo no; return 1; fi
 }
 
+
+# PARSE YAML FILES
 parse_yaml() {
 # From https://gist.github.com/epiloque/8cf512c6d64641bde388
 # Based on https://gist.github.com/pkuczynski/8665367
@@ -39,6 +43,8 @@ parse_yaml() {
     }' | sed 's/_=/+=/g'
 }
 
+
+# SELECT MODE
 modeselektor() {
     case "$1" in
         pull    )   mode="pull_filesystem" ;;
@@ -47,6 +53,8 @@ modeselektor() {
     esac
 }
 
+
+# SET SSH REMOTE HOST
 set_host() {
     if [ "$option_host" != "" ]; then
         host="$(echo $option_host | cut -d' ' -f1)"
@@ -57,19 +65,25 @@ set_host() {
     test "$host" != "" || { err "\$host is empty!!" && exit 21 ;}
 }
 
+
+# SET FILESYSTEM DIRECTORY
 set_datadir() {
     export datadir="$(readlink -m $default_datadir)"
     test "$option_datadir" != "" && export datadir="$(readlink -m "$option_datadir")"
     test ! -f "$datadir" || { err "$datadir is an existing file. cannot use as \$datadir." && exit 22 ;}
 }
 
-set_filelist() { ## set $filelist
+
+# SET LIST OF FILES TO FETCH/PUSH
+set_filelist() {
     export listfile="$default_listfile"
     test "$option_listfile" != "" && export listfile="$option_listfile"
     cat_the_crap $listfile filelist
     test "$filelist" != "" || { err "\$filelist is empty!!"; exit 22; }
 }
 
+
+# SET ALL VARIABLES
 set_variables() {
     set_host
     boldfont "Host:          " && echo "$host"
@@ -87,6 +101,8 @@ set_variables() {
     fi
 }
 
+
+# PARSE ARGUMENTS ON CMDLINE
 parse_arguments() {
 # define beforehand: >$ parser_optlist=(1:one 2:two 3*three)
 # where each option is: [X]{:/*}[...]
@@ -119,6 +135,8 @@ parse_arguments() {
     done
 }
 
+
+# FETCH FILES
 pull_filesystem() {
     test -d $datadir || mkdir $datadir
 
@@ -127,6 +145,8 @@ pull_filesystem() {
     echo "ssh $host \"tar cpvzf - -C / $filelist\" | tar xpzf - -C $datadir"
 }
 
+
+# PUSH FILES
 push_filesystem() { ## script uploads ALL files in $datadir to $host
     test -d "$datadir" || { echo "directory $datadir does not exist." && exit 10 ;}
     test "$(ls -A "$datadir" 2>/dev/null)" || { echo "directory $datadir is empty." && exit 12 ;}
@@ -136,6 +156,8 @@ push_filesystem() { ## script uploads ALL files in $datadir to $host
     echo "tar cpzf - -C $datadir . --owner=0 --group=0 | ssh $host \"tar xvzf - -C /\""
 }
 
+
+# HELPFUL INFORMATION
 howdoiturnthison() { ## usage info
     fn="$(basename $0)"
     echo "
@@ -165,6 +187,8 @@ The script compresses all files with tar to stdout, pipes that through ssh, wher
     exit 1
 }
 
+
+# DELETEME
 cat_the_crap() {
     return 1
 }
