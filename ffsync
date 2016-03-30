@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 default_configfile="ffsync.yml"
-debug() { return 0; }
+debug() { return 1; }
 
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
 err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
@@ -118,6 +118,8 @@ pull_filesystem() {
     set_variable filelist required
     test -d $datadir || mkdir $datadir || { err "failed to create directory for fetching!"; exit 1; }
 
+    check hostname datadir filelist
+    
     boldfont "\nfetching files ..\n"
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
     ssh $hostname "tar cpvzf - -C / $filelist" | tar xpzf - -C $datadir
@@ -128,6 +130,8 @@ pull_filesystem() {
 push_filesystem() { ## script uploads ALL files in $datadir to $host
     test -d "$datadir" || { err "directory $datadir does not exist." && exit 1; }
     test "$(ls -A "$datadir" 2>/dev/null)" || { err "directory $datadir is empty." && exit 1; }
+
+    check hostname datadir
 
     boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
@@ -190,7 +194,6 @@ debug && { echo "parsed yaml config:"; check yesyes $(compgen -v | grep "^yamlco
 for var in datadir hostname; do
     set_variable $var required,firstarg
 done
-check hostname datadir
 
 # RUN SELECTED MODE
 $mode
