@@ -1,7 +1,7 @@
 # Configuration file for ffsync in YAML format
 
-# remote hostname
-hostname:   freifunk-node
+# remote host; can contain options for ssh client
+hostconf:   freifunk-node
 # where filesystem tree is saved
 datadir:    filesystem
 # skip check before transmitting files

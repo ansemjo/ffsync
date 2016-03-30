@@ -30,7 +30,7 @@ parse_arguments() {
 # .. would save "true" into a variable 'three', "First Option" into 'one'
 #    and "SECOND" into 'two' when using above parser_optlist
     
-    parser_optlist=(c:option_configfile h:option_hostname l:option_filelist d:option_datadir y*option_yesyes)
+    parser_optlist=(c:option_configfile h:option_hostconf l:option_filelist d:option_datadir y*option_yesyes)
 
     for item in ${parser_optlist[@]}; do
         argument+=("$(echo $item | cut -c -2 | sed 's/*//')")
@@ -118,11 +118,11 @@ pull_filesystem() {
     set_variable filelist required
     test -d $datadir || mkdir $datadir || { err "failed to create directory for fetching!"; exit 1; }
 
-    check hostname datadir filelist
+    check hostconf datadir filelist
     
     boldfont "\nfetching files ..\n"
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
-    ssh $hostname "tar cpvzf - -C / $filelist" | tar xpzf - -C $datadir
+    ssh $hostconf "tar cpvzf - -C / $filelist" | tar xpzf - -C $datadir
 }
 
 
@@ -131,11 +131,11 @@ push_filesystem() { ## script uploads ALL files in $datadir to $host
     test -d "$datadir" || { err "directory $datadir does not exist." && exit 1; }
     test "$(ls -A "$datadir" 2>/dev/null)" || { err "directory $datadir is empty." && exit 1; }
 
-    check hostname datadir
+    check hostconf datadir
 
     boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
-    tar cpzf - -C $datadir . --owner=0 --group=0 | ssh $hostname "tar xvzf - -C /"
+    tar cpzf - -C $datadir . --owner=0 --group=0 | ssh $hostconf "tar xvzf - -C /"
 }
 
 
@@ -143,26 +143,19 @@ push_filesystem() { ## script uploads ALL files in $datadir to $host
 howdoiturnthison() { ## usage info
     fn="$(basename $0)"
     echo "
- $ $fn <mode> [-h host] [-d directory] [-l listfile] [-y]
+ $ $fn <mode> [-c configfile] [-h hostconf] [-d datadir] [-l \"filelist\"] [-y]
 
 <mode> is one of:
-    push  - copy ALL files in \$datadir to the remote \$host
-    pull  - copy the files listed in \$listfile from \$host and save to \$datadir
+    push  - copy ALL files in \$datadir to the remote \$hostconf
+    pull  - copy the files in \$filelist from \$hostconf and save to \$datadir
 
- \$host is read from ./host by default
- \$datadir is set to ./filesystem/ by default
- \$filelist is set to ./list by default
+ Values for variables are read from 'ffsync.yml' by default.
 
-These variables can be overriden with the following options:
-    [-h HOST] - connect to HOST instead
-    [-d DIRECTORY] - use DIRECTORY for \$datadir instead
-    [-l LISTFILE] - read the filelist from LISTFILE instead
-    [-y] - override the confirmation dialog before action
-
-This script only uses a single string as the remote host, so it is almost mandatory to have a corresponding hostconfig in ~/.ssh/ssh_config or /etc/ssh/ssh_config.
-
-Example: Write the name of your host into ./host and a list of files / directories into ./list. Then execute:
-    $ $fn pull -y
+ -c CONFIG      read configuration from CONFIG instead
+ -h HOST        connect to HOST instead
+ -d DIRECTORY   use DIRECTORY for \$datadir instead
+ -l FILES       fetch files FILES instead
+ -y             override the confirmation dialog before action
 
 The script compresses all files with tar to stdout, pipes that through ssh, where another tar extracts from stdin. This preserves directory structure and you can directly push an entire structure to your host. However, when pushing uid and gid of all files are set to 0 (root) as this script was intended for router configuration backups, which usually only have one root user. Doing this bypasses the need for root locally and preserves proper file ownerships/permissions on the remote device.
 "
@@ -190,10 +183,9 @@ set_variable configfile firstarg
 eval $(parse_yaml "$configfile" "yamlconf_")
 debug && { echo "parsed yaml config:"; check yesyes $(compgen -v | grep "^yamlconf_" | sed 's/$/[@]/'); }
 
-# SET $DATADIR AND $HOSTNAME
-for var in datadir hostname; do
-    set_variable $var required,firstarg
-done
+# SET $DATADIR AND $HOSTCONF
+set_variable datadir required,firstarg
+set_variable hostconf required
 set_variable yesyes
 
 # RUN SELECTED MODE
