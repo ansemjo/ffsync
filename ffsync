@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 
-default_listfile="./list"
-default_hostfile="./host"
-default_fsdir="./filesystem"
-default_yess="false"
+default_configfile="ffsync.yml"
+default_datadir="filesystem"
+default_yesyes="true"
 
 boldfont() { echo -en "\e[1m$@\e[0m"; } ## output text in bold font
 err () { >&2 echo -e "\e[1;31m$@\e[0m"; }
@@ -39,14 +38,6 @@ parse_yaml() {
             printf("%s%s%s=(\"%s\")\n", "'"$prefix"'",vn, $2, $3);
         }
     }' | sed 's/_=/+=/g'
-}
-
-cat_the_crap() { ## parse a file and cut all comments (everything after a '#')
-    local result="$2"
-    if [ -f "$1" ]; then
-        local cleaned="$(cat $1 | sed -r 's/(^| )#.*//' | xargs)"
-        eval $result="'$cleaned'"
-    else err "$1 does not exist."; exit 10; fi
 }
 
 modeselektor() { ## decide mode of operation
@@ -138,8 +129,7 @@ pull_filesystem() {
 
     boldfont "\nfetching files ..\n"
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
-    # ssh $host "tar cpvzf - -C / $filelist" | tar xpzf - -C $fsdir
-    echo "SSH PULL HERE"
+    echo "ssh $host \"tar cpvzf - -C / $filelist\" | tar xpzf - -C $fsdir"
 }
 
 push_filesystem() { ## script uploads ALL files in $fsdir to $host
@@ -151,8 +141,7 @@ push_filesystem() { ## script uploads ALL files in $fsdir to $host
 
     boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
-    # tar cpzf - -C $fsdir . --owner=0 --group=0 | ssh $host "tar xvzf - -C /"
-    echo "SSH PUSH HERE"
+    echo "tar cpzf - -C $fsdir . --owner=0 --group=0 | ssh $host \"tar xvzf - -C /\""
 }
 
 howdoiturnthison() { ## usage info
@@ -183,5 +172,10 @@ The script compresses all files with tar to stdout, pipes that through ssh, wher
 "
 }
 
-## main () {
+cat_the_crap() {
+    return 1
+}
+
+parse_yaml $default_configfile
+
 modeselektor $@
