@@ -25,7 +25,7 @@ Variables can be overriden with the following options:
  - `[-c `_`config.yml`_`]` read configuration from _config.yml_ instead
  - `[-h `_`host`_`]` connect to _host_ instead (this can be hostname + options specific to your ssh client)
  - `[-d `_`dir`_`]` use _dir_ as local directory instead
- - `[-l `_`list`_`]` fetch the files in _list_ instead
+ - `[-l `_`"file /path/to/dir/"`_`]` fetch the _file_ and directory _/path/to/dir_ (including subfolders) instead
  - `[-y]` override the confirmation dialog
  
 Options can be specified in any order and combinations like `ffsync pull -yh `_`host`_ are also possible.
