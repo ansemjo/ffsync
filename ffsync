@@ -88,7 +88,7 @@ set_variable() {
             else
                 eval export $1="'${!va}'"
             fi
-            debug && err "set_variable $1: $va --> '${!1}'"
+            debug && echo "set_variable $1: $va --> '${!1}'"
             return 0
         fi
     done
@@ -102,6 +102,7 @@ set_variable() {
 # CHECK VALUES BEFORE ACTION
 check() {
     [ -n "$*" ] || return 1
+    [ "$1" = "yesyes" ] && local yesyes=true && shift
     for value in "$@"; do
         boldfont "$value: "
         echo "'${!value}'"
@@ -114,22 +115,23 @@ check() {
 
 # FETCH FILES
 pull_filesystem() {
-    test -d $datadir || mkdir $datadir
+    set_variable filelist required
+    test -d $datadir || mkdir $datadir || { err "failed to create directory for fetching!"; exit 1; }
 
     boldfont "\nfetching files ..\n"
     # compresses to stdout remotely and pipes this to a local tar which extracts from stdin
-    echo "ssh $host \"tar cpvzf - -C / $filelist\" | tar xpzf - -C $datadir"
+    ssh $hostname "tar cpvzf - -C / $filelist" | tar xpzf - -C $datadir
 }
 
 
 # PUSH FILES
 push_filesystem() { ## script uploads ALL files in $datadir to $host
-    test -d "$datadir" || { echo "directory $datadir does not exist." && exit 10 ;}
-    test "$(ls -A "$datadir" 2>/dev/null)" || { echo "directory $datadir is empty." && exit 12 ;}
+    test -d "$datadir" || { err "directory $datadir does not exist." && exit 1; }
+    test "$(ls -A "$datadir" 2>/dev/null)" || { err "directory $datadir is empty." && exit 1; }
 
     boldfont "\npushing files ..\n"
     # compresses to stdout locally and pipes this to a remote tar which extracts from stdin
-    echo "tar cpzf - -C $datadir . --owner=0 --group=0 | ssh $host \"tar xvzf - -C /\""
+    tar cpzf - -C $datadir . --owner=0 --group=0 | ssh $hostname "tar xvzf - -C /"
 }
 
 
@@ -171,18 +173,18 @@ case "$1" in
     push    )   mode="push_filesystem" ;;
     *       )   howdoiturnthison ;;
 esac; shift
-debug && err "mode $mode selected"
+debug && echo "action $mode selected"
 
 # PARSE ARGUMENTS ON CMDLINE
 parse_arguments "$@"
-debug && { err "arguments on commandline:"; check $(compgen -v | grep "^option_" | sed 's/$/[@]/'); }
+debug && { echo "arguments on commandline:"; check yesyes $(compgen -v | grep "^option_" | sed 's/$/[@]/'); }
 
 # SET CONFIG FILE
 set_variable configfile firstarg
 
 # PARSE YAML CONFIGFILE
 eval $(parse_yaml "$configfile" "yamlconf_")
-debug && { err "parsed yaml config:"; check $(compgen -v | grep "^yamlconf_" | sed 's/$/[@]/'); }
+debug && { echo "parsed yaml config:"; check yesyes $(compgen -v | grep "^yamlconf_" | sed 's/$/[@]/'); }
 
 # SET $DATADIR AND $HOSTNAME
 for var in datadir hostname; do
