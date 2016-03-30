@@ -110,14 +110,15 @@ set_filelist() {
 # UNIVERSALLY SET VARIABLE
 set_variable() {
     for priority in option yamlconf default; do
-        local va="${priority}_$1"
-        if [ -n "${!va}" ]; then
-            debug && err "set_variable $1: $va --> $(eval "echo \${$va[@]}")"
-            eval export $1="'$(eval "echo \${$va[@]}")'"
+        local va="${priority}_$1[@]"
+        if [ "$(echo ${!va})" != "" ]; then
+            err "set_variable $1: $va --> '${!va}'"
+            eval export $1="'${!va}'"
             return 0
         fi
     done
-# what if none matches?
+    err "no value for '$1'! abort."
+    exit 1
 }
 
 
@@ -222,8 +223,6 @@ debug && { boldfont "YAML file parsed: (only first argument shown)\n"
 for option in $(compgen -v | grep "^yamlconf_"); do
     echo "$option = ${!option}"
 done }
-
-boldfont "debug filelist from yaml: ${yamlconf_filelist[@]}\n"
 
 for vn in datadir hostname filelist; do
     set_variable $vn
