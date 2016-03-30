@@ -30,7 +30,7 @@ parse_arguments() {
 # .. would save "true" into a variable 'three', "First Option" into 'one'
 #    and "SECOND" into 'two' when using above parser_optlist
     
-    parser_optlist=(c:option_configfile h:option_host l:option_list d:option_datadir y*option_yess)
+    parser_optlist=(c:option_configfile h:option_hostname l:option_filelist d:option_datadir y*option_yesyes)
 
     for item in ${parser_optlist[@]}; do
         argument+=("$(echo $item | cut -c -2 | sed 's/*//')")
@@ -104,6 +104,20 @@ set_filelist() {
     test "$option_listfile" != "" && export listfile="$option_listfile"
     cat_the_crap $listfile filelist
     test "$filelist" != "" || { err "\$filelist is empty!!"; exit 22; }
+}
+
+
+# UNIVERSALLY SET VARIABLE
+set_variable() {
+    for priority in option yamlconf default; do
+        local va="${priority}_$1"
+        if [ -n "${!va}" ]; then
+            debug && err "set_variable $1: $va --> $(eval "echo \${$va[@]}")"
+            eval export $1="'$(eval "echo \${$va[@]}")'"
+            return 0
+        fi
+    done
+# what if none matches?
 }
 
 
@@ -200,6 +214,8 @@ for option in $(compgen -v | grep "^option"); do
     echo "$option = ${!option}"
 done }
 
+set_variable configfile
+
 # PARSE YAML CONFIGFILE
 eval $(parse_yaml "$configfile" "yamlconf_")
 debug && { boldfont "YAML file parsed: (only first argument shown)\n"
@@ -207,6 +223,15 @@ for option in $(compgen -v | grep "^yamlconf_"); do
     echo "$option = ${!option}"
 done }
 
+boldfont "debug filelist from yaml: ${yamlconf_filelist[@]}\n"
 
-set_variables
+for vn in datadir hostname filelist; do
+    set_variable $vn
+done
 
+boldfont "parsed all vars:
+configfile:     $configfile
+datadir:        $datadir
+hostname:       $hostname
+filelist:       $filelist
+"
