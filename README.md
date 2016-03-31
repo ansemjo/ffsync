@@ -35,13 +35,9 @@ Options can be specified in any order and combinations like `ffsync pull -yh `_`
 The configuration is done in a YAML-formatted file:
 
 ```
-# remote host; can contain options for ssh client
 hostconf:   freifunk-node
-# where filesystem tree is saved
 datadir:    filesystem
-# skip check before transmitting files
 yesyes:     false
-# list of files to fetch, pushing copies ALL files in $datadir
 filelist:
     - /etc/profile
     - /etc/hosts
